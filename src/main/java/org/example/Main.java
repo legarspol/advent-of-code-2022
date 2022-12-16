@@ -4,130 +4,139 @@ package org.example;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class Main {
-
-    private static ArrayList<int[][]> points;
-
-    static int distance(int[] s, int[] b) {
-        return Math.abs(s[1] - b[1]) + Math.abs(s[0] - b[0]);
-    }
-
-    static class Test {
-        String t(int[] s) {
-            return s[0] + ", " + s[1];
-        }
-
-
-        int minX = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE;
-        int minY = Integer.MAX_VALUE;
-        int maxY = Integer.MIN_VALUE;
-
-        void addToMax(int[] b) {
-
-            if (b[0] > maxX)
-                maxX = b[0];
-            if (b[0] < minX)
-                minX = b[0];
-            if (b[1] > maxY)
-                maxY = b[1];
-            if (b[1] < minY)
-                maxY = b[1];
-        }
-
-        void test() throws IOException, InterruptedException {
-
-            HashMap<String, String> map = new HashMap<>();
-
-            String[] fileString = new String(Files.readAllBytes(new File("day15").toPath())).split("\n");
-            System.out.println(Arrays.toString(fileString));
-            points = new ArrayList<>();
-            for (String a : fileString) {
-
-                String[] split = a.split(": closest beacon is at x=");
-                System.out.println(Arrays.toString(split));
-                int[] s = Arrays.stream(split[0]
-                                .replace("Sensor at x=", "")
-                                .replace(" y=", "")
-                                .split(","))
-                        .mapToInt(Integer::parseInt)
-                        .toArray();
-                int[] b = Arrays.stream(split[1].split(", y=")).mapToInt(Integer::parseInt).toArray();
-                System.out.println(Arrays.toString(s) + " " + Arrays.toString(b));
-
-//                addToMax(b);
-                int distance = distance(s, b);
-
-                addToMax(new int[]{s[0] - distance, s[1] - distance});
-                addToMax(new int[]{s[0] + distance, s[1] + distance});
-
-                map.put(t(s), "S");
-                points.add(new int[][]{s, b});
-
-//                for (int x = s[0] - distance; x <= s[0] + distance; x++) {
-//                    for (int y = s[1] - distance; y < s[1] + distance; y++) {
-//                        int[] cur = new int[]{x, y};
-//                        if (distance(s, b) <= distance) {
-//                            map.put(t(cur), "#");
-//                        }
-//                    }
-//                }
-                map.put(t(b), "B");
-
-            }
-
-
-            for (int[][] point : points) {
-                int distance = distance(point[0], point[1]) + 1;
-                for (int i = 0; i < distance; i++) {
-                    int[] signal = point[0];
-                    checkOutOfBound(signal[0] + distance - i, signal[1] + i);
-                    checkOutOfBound(signal[0] + distance - i, signal[1] - i);
-                    checkOutOfBound(signal[0] - distance + i, signal[1] - i);
-                    checkOutOfBound(signal[0] - distance + i, signal[1] + i);
-                }
-            }
-//
-//                System.out.println(Arrays.toString(curr));
-//                System.out.println(curr[0] * 4000000 + curr[1]);
-//                System.out.print(".");
-            return;
-        }
-
-        private void checkOutOfBound(int i, int i1) {
-            if (i < 0 || i1 < 0 || i > 4000000 || i1 > 4000000)
-                return;
-            for (int[][] point : points) {
-                int distance = distance(point[0], point[1]);
-                if (distance(point[0], new int[]{i, i1}) <= distance) {
-                    return;
-                }
-            }
-            System.out.println(i + "- " + i1);
-            System.out.println(i * 4000000 + i1);
-// 116472624
-        }
-    }
-
-    //
     public static void main(String[] args) throws IOException, InterruptedException {
+        System.out.println("Score: " + new Test().test("day16t"));
+    }
+}
+
+class Node {
+    public String name;
+    public int rate;
+    public String[] link;
+
+    public boolean isOpened = false;
+
+    Node(String name, int rate, String[] link) {
+        this.name = name;
+        this.rate = rate;
+        this.link = link;
+    }
+
+    @Override
+    public String toString() {
+        return "<" + name + " rate:" + rate + ", " + Arrays.toString(link) + ">";
+    }
+}
+
+
+class Test {
+    HashMap<String, Node> map;
+
+
+    int test(String pathname) throws IOException, InterruptedException {
 //        System.out.println("Hello world!");
 //        BufferedReader br = new BufferedReader(
 //                new InputStreamReader(new FileInputStream("day3")));
 //
+        map = new HashMap<>();
+        String file = new String(Files.readAllBytes(new File(pathname).toPath()));
+        String[] fileString = file.split("\n");
+        Pattern pattern = Pattern.compile("Valve ([A-Z]*) has flow rate=(\\d+); \\w+ \\w+ to \\w+ (.*)");
 
-//        for (String arg : args) {
-//
-//            System.out.println(arg);
-//        }
-        new Test().test();
-//        new Test().test(args[0]);
+        for (String s : fileString) {
+            Matcher matcher = pattern.matcher(s);
+            matcher.lookingAt();
+//            System.out.println(s);
+            String name = matcher.group(1);
+//            System.out.println(name);
+            map.put(name, new Node(name, Integer.parseInt(matcher.group(2)), matcher.group(3).split(", ")));
+        }
+        System.out.println(map);
+        System.out.println();
+
+
+        Node currentNode = map.get("AA");
+
+        int TOTAL_TIME = 30;
+        ArrayList<Node> openedValves = new ArrayList<>();
+        //Find the most exciting one
+//        System.out.println(map.size());
+//        System.out.println(map.values().size());
+        int score = 0;
+        for (int i = 1; i <= TOTAL_TIME; i++) {
+            System.out.println();
+            System.out.println("== Minute " + i + " ==");
+
+            if (openedValves.size() == 0) {
+                System.out.println("No valves are open.");
+            } else {
+                List<String> openedValvesName = openedValves.stream().map(a -> a.name).collect(Collectors.toList());
+                Integer reduce = openedValves.stream().map(a -> a.rate).reduce(0, Integer::sum);
+                score += reduce;
+                System.out.println("Valves " + openedValvesName + " are open, releasing " + reduce + " pressure. score=" + score);
+            }
+
+            List<String> collect = Arrays.stream(map.keySet().toArray()).map(a -> (String) a).collect(Collectors.toList());
+            Node finalCurrentNode = currentNode;
+            Optional<SimpleEntry<Node, Integer>> max = collect.stream()
+                    .map(a -> map.get(a))
+                    .map(n -> {
+                        int distance = distance(finalCurrentNode, n).size();
+                        int value = n.isOpened ? 0 : n.rate * 10 / (distance + 1);
+                        return new SimpleEntry<Node, Integer>(n, value);
+                    })
+                    .max(Comparator.comparingInt(SimpleEntry::getValue));
+            System.out.println("We want to go to: " + max.get());
+
+            //open it
+            List<String> path = distance(currentNode, max.get().getKey());
+            System.out.println(path);
+            if (path.size() == 0) {
+                if (currentNode.isOpened) {
+                    System.out.println("valve already opened. Do nothing.");
+                } else {
+                    System.out.println("We arrived. We open the valve.");
+                    currentNode.isOpened = true;
+                    openedValves.add(currentNode);
+                }
+            } else {
+                currentNode = map.get(path.get(0));
+
+                System.out.println("We are now at " + currentNode);
+            }
+        }
+        return score;
     }
 
-}
 
+    private List<String> distance(Node currentNode, Node n) {
+        Queue<SimpleEntry<String, ArrayList<String>>> queue = new LinkedList<>();
+        HashMap<String, List<String>> distance = new HashMap<>();
+
+        queue.add(new SimpleEntry<>(currentNode.name, new ArrayList<>()));
+        distance.put(currentNode.name, new ArrayList<>());
+
+        while (!queue.isEmpty()) {
+            SimpleEntry<String, ArrayList<String>> pair = queue.poll();
+            String poll = pair.getKey();
+            Node node = map.get(poll);
+            for (String s : node.link) {
+                if (distance.get(s) == null) {
+                    ArrayList<String> past = new ArrayList<>(pair.getValue());
+                    past.add(s);
+                    queue.add(new SimpleEntry<>(s, past));
+                    distance.put(s, past);
+                }
+            }
+        }
+        return distance.get(n.name);
+    }
+}
 
