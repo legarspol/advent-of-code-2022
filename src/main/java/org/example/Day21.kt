@@ -1,7 +1,6 @@
 package org.example
 
 import java.io.File
-import java.lang.IllegalArgumentException
 import java.nio.file.Files
 
 sealed class Monkey(val name: String)
@@ -36,15 +35,65 @@ class Day21 {
             }
 //        println(map)
 
-        println((map["root"]!!.eval()))
+        val monkey = map["root"]!! as MonkeyOp
+        var unk: MonkeyOp
+        val op1 = map.get(monkey.op1)!!
+        var known: Long
+        try {
+            known = op1.eval();
+            unk = (map[monkey.op2] as MonkeyOp?)!!
+        } catch (e: IllegalArgumentException) {
+            unk = op1 as MonkeyOp;
+            known = map[monkey.op2]!!.eval()
+        }
+        println(known)
+        println(unk)
+        simplify(unk, known)
+    }
+
+    private fun simplify(unkStart: MonkeyOp, knownStart: Long) {
+        var unk = unkStart
+        var known = knownStart
+        var next: Monkey = unk
+        while (next.name != "humn") {
+            unk = next as MonkeyOp
+            try {
+                val op2 = map.get(unk.op2)!!.eval()
+                known = when (unk.operation) {
+                    '/' -> known * op2
+                    '*' -> known / op2
+                    '+' -> known - op2
+                    '-' -> known + op2
+                    else -> throw IllegalStateException("unknown operation")
+                }
+                next = map[unk.op1]!!
+            } catch (e: java.lang.IllegalArgumentException) {
+                val op1 = map.get(unk.op1)!!.eval()
+                known = when (unk.operation) {
+                    '/' -> op1 / known
+                    '*' -> known / op1
+                    '+' -> known - op1
+                    '-' -> op1 -known
+                    else -> throw IllegalStateException("unknown operation")
+                }
+                next = map.get(unk.op2)!!
+            }
+        }
+        println("humn = " + known)
     }
 
     private fun Monkey.eval(): Long {
         return when (this) {
             is MonkeyValue -> this.value
             is MonkeyOp -> {
-                val op1 = map[this.op1]!!.eval()
-                val op2 = map[this.op2]!!.eval()
+
+                val monkey1 = map[this.op1]!!
+                val monkey2 = map[this.op2]!!
+                if (monkey2.name == "humn" || monkey1.name == "humn") {
+                    throw IllegalArgumentException();
+                }
+                val op1 = monkey1.eval()
+                val op2 = monkey2.eval()
                 when (this.operation) {
                     '/' -> op1 / op2
                     '*' -> op1 * op2
