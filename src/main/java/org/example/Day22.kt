@@ -9,16 +9,6 @@ lateinit var dirs: String
 var index = 0
 lateinit var pos: Point
 
-enum class Direction(val value: Int) {
-    RIGHT(0),
-    BOTTOM(1),
-    LEFT(2),
-    TOP(3);
-
-    companion object {
-        fun fromInt(value: Int) = Direction.values().first { it.value == value }
-    }
-}
 
 fun Char.toDir(): Direction {
     var i = when (this) {
@@ -40,14 +30,14 @@ fun Point.outOfBound(): Boolean {
 }
 
 lateinit var map: List<String>
+
+val SIZE = 50 - 1
+//val SIZE = 4 - 1
 fun main() {
     val file = String(Files.readAllBytes(File("day22").toPath()))
     val input = file.split("\n\n")
     map = input[0].split("\n")
     dirs = input[1]
-    println(map)
-    println("--")
-    println(dirs)
 
     //find first pos
     var i = 0
@@ -58,12 +48,11 @@ fun main() {
         }
         i++
     }
-    println(i)
-
     //0 for right (>), 1 for down (v), 2 for left (<), and 3 for up (^)
     pos = Point(i, 0)
 
     while (execNextCommand()) {
+        print("command executed: ")
         printPost()
     }
     val score = getScore(pos, direction.value)
@@ -91,11 +80,15 @@ private fun execNextCommand(): Boolean {
     }
 
     if (nextDir != null) {
+        println("command: " + nextDir)
         direction = nextDir
+
     } else if (number != "") {
         val move = number.toInt()
+        println("command: move " + move)
+
         for (i in 0 until move) {
-            pos = nextPos(pos)
+            nextPos()
             printPost()
 
 
@@ -106,37 +99,128 @@ private fun execNextCommand(): Boolean {
     return true
 }
 
-private fun nextPos(pos: Point): Point {
+fun Point.getFace(): Face {
+    for (face in Face.values()) {
+        val min = face.min
+        if (this.x in min.x..(min.x + SIZE) && this.y in min.y..(min.y + SIZE))
+            return face
+    }
+    throw java.lang.IllegalArgumentException("Facenot found" + this)
+}
+
+
+enum class Direction(val value: Int) {
+    RIGHT(0),
+    BOTTOM(1),
+    LEFT(2),
+    TOP(3);
+
+    companion object {
+        fun fromInt(value: Int) = Direction.values().first { it.value == value }
+    }
+}
+
+class Trans(val face: Face, val direction: Direction)
+//enum class Face(val min: Point) {
+//    One(Point(8, 0)),
+//    Two(Point(0, 4)),
+//    Three(Point(4, 4)),
+//    Four(Point(8, 4)),
+//    Five(Point(8, 8)),
+//    Six(Point(12, 8));
+//
+//    fun getTrans(direction: Direction): Trans? = when (this) {
+//        One -> listOf(Trans(Six, Direction.LEFT), null, Trans(Three, Direction.BOTTOM), Trans(Two, Direction.BOTTOM))
+//        Two -> listOf(null, Trans(Five, Direction.TOP), Trans(Six, Direction.TOP), Trans(One, Direction.TOP))
+//        Three -> listOf(null, Trans(Five, Direction.RIGHT), null, Trans(One, Direction.RIGHT))
+//        Four -> listOf(Trans(Six, Direction.BOTTOM), null, null, null)
+//        Five -> listOf(null, Trans(Two, Direction.TOP), Trans(Three, Direction.TOP), null)
+//        Six -> listOf(Trans(One, Direction.LEFT), Trans(Two, Direction.RIGHT), null, Trans(Four, Direction.LEFT))
+//    }[direction.value]
+//
+//}
+
+enum class Face(val min: Point) {
+    One(Point(50, 0)),
+    Two(Point(100, 0)),
+    Three(Point(50, 50)),
+    Four(Point(0, 100)),
+    Five(Point(50, 100)),
+    Six(Point(0, 150));
+
+    fun getTrans(direction: Direction): Trans? = when (this) {
+        One -> listOf(null, null, Trans(Four, Direction.RIGHT), Trans(Six, Direction.RIGHT))
+        Two -> listOf(Trans(Five, Direction.LEFT), Trans(Three, Direction.LEFT), null, Trans(Six, Direction.TOP))
+        Three -> listOf(Trans(Two, Direction.TOP), null, Trans(Four, Direction.BOTTOM), null)
+        Four -> listOf(null, null, Trans(One, Direction.RIGHT), Trans(Three, Direction.RIGHT))
+        Five -> listOf(Trans(Two, Direction.LEFT), Trans(Six, Direction.LEFT), null, null)
+        Six -> listOf(Trans(Five, Direction.TOP), Trans(Two, Direction.BOTTOM), Trans(One, Direction.BOTTOM), null)
+    }[direction.value]
+
+}
+
+private fun nextPos() {
+
     var nextPoint = when (direction) {
         Direction.RIGHT -> Point(pos.x + 1, pos.y)
         Direction.LEFT -> Point(pos.x - 1, pos.y)
         Direction.BOTTOM -> Point(pos.x, pos.y + 1)
         Direction.TOP -> Point(pos.x, pos.y - 1)
     }
-
+    var nextDirection = direction;
     if (nextPoint.outOfBound()) {
+        // which face is the dude comming from
+        val face = pos.getFace()
+        val trans = face.getTrans(direction)
+        val relx = pos.x - face.min.x;
+        val rely = pos.y - face.min.y;
+
+        val dest = trans!!.face.min
+        val maxDestY = dest.y + SIZE
+        val maxDestX = dest.x + SIZE
         nextPoint = when (direction) {
-            Direction.RIGHT -> wrapAround(nextPoint) { pos: Point -> Point(pos.x - 1, pos.y) }
-            Direction.LEFT -> wrapAround(nextPoint) { pos: Point -> Point(pos.x + 1, pos.y) }
-            Direction.TOP -> wrapAround(nextPoint) { pos: Point -> Point(pos.x, pos.y + 1) }
-            Direction.BOTTOM -> wrapAround(nextPoint) { pos: Point -> Point(pos.x, pos.y - 1) }
+            Direction.TOP -> {
+                when (trans.direction) {
+                    Direction.RIGHT -> Point(dest.x, dest.y + relx)
+                    Direction.BOTTOM -> Point(maxDestX - relx, dest.y)
+                    Direction.LEFT -> Point(maxDestX, maxDestY - relx)
+                    Direction.TOP -> Point(dest.x + relx, maxDestY)
+                }
+            }
+
+            Direction.BOTTOM -> {
+                when (trans.direction) {
+                    Direction.RIGHT -> Point(dest.x, dest.y + relx)
+                    Direction.BOTTOM -> Point(dest.x + relx, dest.y)
+                    Direction.LEFT -> Point(maxDestX,  dest.y + relx)
+                    Direction.TOP -> Point(maxDestX - relx, maxDestY)
+                }
+            }
+
+            Direction.RIGHT -> {
+                when (trans.direction) {
+                    Direction.RIGHT -> Point(dest.x, dest.y + rely)
+                    Direction.BOTTOM -> Point(maxDestX - rely, dest.y)
+                    Direction.LEFT -> Point(maxDestX, maxDestY - rely)
+                    Direction.TOP -> Point(dest.x + rely, maxDestY)
+                }
+            }
+
+            Direction.LEFT -> {
+                when (trans.direction) {
+                    Direction.RIGHT -> Point(dest.x, maxDestY - rely)
+                    Direction.BOTTOM -> Point(dest.x+rely, dest.y)
+                    Direction.LEFT -> Point(maxDestX, rely)
+                    Direction.TOP -> Point(maxDestX - rely, maxDestY)
+                }
+            }
         }
+        nextDirection = trans.direction
+
     }
-    if (map[nextPoint.y][nextPoint.x] == '#')
-        return pos
-    return nextPoint
-}
-
-
-fun wrapAround(pos: Point, function: (Point) -> (Point)): Point {
-    var temp = pos
-    while (true) {
-        val nextPos = function(temp)
-        if (nextPos.outOfBound()) {
-            return temp
-        } else {
-            temp = nextPos
-        }
+    if (map[nextPoint.y][nextPoint.x] != '#') {
+        pos = nextPoint
+        direction = nextDirection
     }
 }
 
