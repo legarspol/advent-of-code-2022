@@ -16,10 +16,12 @@ public class Day16 {
     }
 
 
+    static class Test {
+        int TOTAL_TIME = 26;
 
-  static   class Test {
         HashMap<String, Node> map;
-        List<Integer> scores = new ArrayList<>();
+        //        List<Integer> scores = new ArrayList<>();
+        Integer maxScore = Integer.MIN_VALUE;
 
         int test(String pathname) throws IOException, InterruptedException {
 //        System.out.println("Hello world!");
@@ -40,47 +42,71 @@ public class Day16 {
             System.out.println(map);
             System.out.println();
 
-            generateCombinations(new ArrayList<>(),
+            generateCombinations(new ArrayList<>(), new ArrayList<>(),
                     map.values().stream().filter(a -> a.rate != 0).collect(Collectors.toList()));
-            System.out.println("count "+ count);
-            return scores.stream().max(Comparator.comparingInt(a -> a)).get();
+            System.out.println("count " + count);
+            return maxScore;
 //        return 0;
         }
 
         long count = 0;
-        private void generateCombinations(ArrayList<Node> program, List<Node> collect) {
 
-
-            if (collect.isEmpty()  || measureRunningTimeOf(program) > 30) {
+        private void generateCombinations(ArrayList<Node> program1, ArrayList<Node> program2, List<Node> collect) {
+            boolean program1Full = measureRunningTimeOf(program1) > TOTAL_TIME;
+            boolean program2Full = measureRunningTimeOf(program2) > TOTAL_TIME;
+            if (collect.isEmpty() || (program1Full && program2Full)) {
                 count++;
-                System.out.println(count);
-                testThisSolution(program);
+//                System.out.println(count);
+                String tag1 = program1.stream().map(a -> a.name).collect(Collectors.joining(","));
+                String tag2 = program2.stream().map(a -> a.name).collect(Collectors.joining(","));
+                int score = testThisSolution(program1, tag1) + testThisSolution(program2, tag2);
+                System.out.println(tag1 + "+" + tag2 + "=" + score);
+                if (maxScore < score)
+                    maxScore = score;
             } else {
                 for (Node node : collect) {
-                    ArrayList<Node> nodes = new ArrayList<>(program);
-                    nodes.add(node);
-
                     List<Node> newCollect = new ArrayList<Node>(collect);
                     newCollect.remove(node);
-                    generateCombinations(nodes, newCollect);
+                    if (!program1Full) {
+                        ArrayList<Node> nextProgram1 = new ArrayList<>(program1);
+                        ArrayList<Node> nextProgram2 = new ArrayList<>(program2);
+                        nextProgram1.add(node);
+                        generateCombinations(nextProgram1, nextProgram2, newCollect);
+                    }
+                    if (!program2Full) {
+                        ArrayList<Node> nextProgram1 = new ArrayList<>(program1);
+                        ArrayList<Node> nextProgram2 = new ArrayList<>(program2);
+                        nextProgram2.add(node);
+                        generateCombinations(nextProgram1, nextProgram2, new ArrayList<>(newCollect));
+                    }
+                    ArrayList<Node> nextProgram1 = new ArrayList<>(program1);
+                    ArrayList<Node> nextProgram2 = new ArrayList<>(program2);
+                    generateCombinations(nextProgram1, nextProgram2, new ArrayList<>(newCollect));
                 }
             }
         }
 
+
         private int measureRunningTimeOf(ArrayList<Node> program) {
             int runningTime = 0;
             Node pos = map.get("AA");
-            for (Node node: program ) {
+            for (Node node : program) {
                 runningTime += distance(pos, node).size() + 1;
                 pos = node;
             }
             return runningTime;
         }
 
-        private int testThisSolution(List<Node> program) {
+        HashMap<String, Integer> pathScore = new HashMap<String, Integer>();
+
+        private int testThisSolution(List<Node> program, String tag) {
+            Integer recordedScore = pathScore.get(tag);
+            if (recordedScore != null)
+                return recordedScore;
+
+            System.out.println(tag);
             Node currentNode = map.get("AA");
 
-            int TOTAL_TIME = 30;
             ArrayList<Node> openedValves = new ArrayList<>();
             //Find the most exciting one
 //        System.out.println(map.size());
@@ -93,7 +119,7 @@ public class Day16 {
                 if (openedValves.size() == 0) {
 //                System.out.println("No valves are open.");
                 } else {
-                    List<String> openedValvesName = openedValves.stream().map(a -> a.name).collect(Collectors.toList());
+//                    List<String> openedValvesName = openedValves.stream().map(a -> a.name).collect(Collectors.toList());
                     Integer reduce = openedValves.stream().map(a -> a.rate).reduce(0, Integer::sum);
                     score += reduce;
 //                System.out.println("Valves " + openedValvesName + " are open, releasing " + reduce + " pressure. score=" + score);
@@ -101,16 +127,7 @@ public class Day16 {
                 if (program.size() == 0)
                     continue;
 
-//            List<String> collect = Arrays.stream(map.keySet().toArray()).map(a -> (String) a).collect(Collectors.toList());
-//            Node finalCurrentNode = currentNode;
-//            Optional<SimpleEntry<Node, Integer>> max = collect.stream()
-//                    .map(a -> map.get(a))
-//                    .map(n -> {
-//                        int distance = distance(finalCurrentNode, n).size();
-//                        int value = openedValves.contains(n) ? 0 : n.rate * 10 / (distance + 1);
-//                        return new SimpleEntry<Node, Integer>(n, value);
-//                    })
-//                    .max(Comparator.comparingInt(SimpleEntry::getValue));
+
                 Node destination = program.get(0);
 //            System.out.println("We want to go to: " + destination);
 
@@ -132,12 +149,39 @@ public class Day16 {
 //                System.out.println("We are now at " + currentNode);
                 }
             }
-            scores.add(score);
+            System.out.println(tag + score);
+            pathScore.put(tag, score);
 //        System.out.println(program.stream().map(a -> a.name).collect(Collectors.toList()) + " " + score);
             return score;
         }
 
+        private Node moveProgram(List<Node> program, Node currentNode, ArrayList<Node> myOpenedValves, ArrayList<Node> otherOpenedValves) {
+            if (program.size() == 0)
+                return currentNode;
+            Node destination = program.get(0);
+//            System.out.println("We want to go to: " + destination);
+
+
+            //open it
+            List<String> path = distance(currentNode, destination);
+//            System.out.println(path);
+            if (path.size() == 0) {
+                if (myOpenedValves.contains(currentNode) || otherOpenedValves.contains(currentNode)) {
+//                    System.out.println("valve already opened. Do nothing.");
+                } else {
+//                    System.out.println("We arrived. We open the valve.");
+                    myOpenedValves.add(currentNode);
+                    program.remove(0);
+                }
+            } else {
+                currentNode = map.get(path.get(0));
+//                System.out.println("We are now at " + currentNode);
+            }
+            return currentNode;
+        }
+
         Map<String, ArrayList<String>> memo = new HashMap<>();
+
         private List<String> distance(Node currentNode, Node n) {
             ArrayList<String> strings = memo.get(currentNode.name + "-" + n.name);
             if (strings != null) {
@@ -169,7 +213,7 @@ public class Day16 {
         }
     }
 
-   static class Node {
+    static class Node {
         public String name;
         public int rate;
         public String[] link;
